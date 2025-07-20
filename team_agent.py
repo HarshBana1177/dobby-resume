@@ -1,6 +1,5 @@
-from typing import Literal, Tuple, Dict, Optional
+from typing import Tuple, Dict
 import os
-import time
 import json
 import requests
 import PyPDF2
@@ -13,7 +12,100 @@ from email.mime.multipart import MIMEMultipart
 import streamlit as st
 from streamlit_pdf_viewer import pdf_viewer
 
-# === Dobby ===
+st.set_page_config(page_title="Dobby Recruitment System", layout="wide")
+
+def set_modern_style():
+    st.markdown("""
+        <style>
+            html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+                background: #f5f6fa !important;
+                color: #222 !important;
+            }
+            [data-testid="stSidebar"] {
+                box-shadow: 2px 0 16px #ececec !important;
+            }
+            [data-testid="stSidebar"] * { color: #222 !important; }
+            h1, h2, h3, h4, h5, h6, label, div, p, span { color: #222 !important; }
+
+            /* Modern silvery 3D look for all buttons and button-like elements */
+            .stButton > button, .stDownloadButton > button,
+            .stFileUploader .css-1umw1f3, .stFileUploader button,
+            [data-testid="baseButton-secondary"], [data-testid="baseButton-secondaryForm"] {
+                background: #e0e1e3 !important;
+                color: #222 !important;
+                border-radius: 12px !important;
+                font-weight: 600 !important;
+                border: 1.5px solid #babbbb !important;
+                box-shadow: 0 1.5px 6px #e6e7eb !important;
+                transition: 0.08s filter;
+            }
+            .stButton > button:hover, .stDownloadButton > button:hover,
+            .stFileUploader .css-1umw1f3:hover, .stFileUploader button:hover,
+            [data-testid="baseButton-secondary"]:hover, [data-testid="baseButton-secondaryForm"]:hover {
+                filter: brightness(0.96) !important;
+                border: 1.5px solid #888 !important;
+            }
+            /* Fix for all popovers, dropdowns, selects, and file uploader popups */
+            div[data-baseweb="popover"], div[data-baseweb="menu"], div[data-baseweb="option"] {
+                background: #e0e1e3 !important;
+                color: #222 !important;
+                border-radius: 10px !important;
+            }
+            div[data-baseweb="option"]:hover, div[data-baseweb="option"]:active, div[data-baseweb="option"][aria-selected="true"] {
+                background: #d4d6da !important;
+                color: #222 !important;
+            }
+            .stSelectbox div[data-baseweb="select"] > div {
+                background-color: #e0e1e3 !important;
+                color: #222 !important;
+            }
+            .stSelectbox div[data-baseweb="select"] input {
+                background: #e0e1e3 !important;
+                color: #222 !important;
+            }
+            .stSelectbox label, .stSelectbox span, .stSelectbox p, .stSelectbox div {
+                color: #222 !important;
+            }
+            /* Eye icon and eye container for password fields */
+            .stTextInput [data-testid="stWidgetIcon"], .stPassword [data-testid="stWidgetIcon"] {
+                background: #e0e1e3 !important;
+                color: #222 !important;
+                border-radius: 9px !important;
+                padding: 2px 6px 2px 6px !important;
+                border: 1.2px solid #babbbb !important;
+            }
+            .stTextInput input, .stTextArea textarea, .stPassword input {
+                background: #fff !important;
+                color: #222 !important;
+                border-radius: 7px !important;
+                border: 1.5px solid #bbb !important;
+                caret-color: #222 !important;
+                font-size: 1.06rem !important;
+                box-shadow: none !important;
+            }
+            .stTextInput input:focus, .stPassword input:focus {
+                outline: 2px solid #6a6aee !important;
+                border: 1.5px solid #6a6aee !important;
+            }
+            .stFileUploader, .stFileUploader > section {
+                background-color: #e0e1e3 !important;
+                color: #222 !important;
+                border-radius: 9px !important;
+            }
+            .stFileUploader label, .stFileUploader span, .stFileUploader p, .stFileUploader div {
+                color: #222 !important;
+            }
+            .stTooltipContent {
+                background: #e0e1e3 !important;
+                color: #222 !important;
+            }
+            .stAlert {
+                background-color: #f6f7fa !important;
+                color: #222 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
 class DobbyChat:
     def __init__(self, api_key, model="accounts/sentientfoundation/models/dobby-unhinged-llama-3-3-70b-new"):
         self.api_key = api_key
@@ -39,8 +131,6 @@ class DobbyChat:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
-
-# === Email sending functions (SMTP) ===
 
 def send_simple_confirmation_email(to_email, company_name, role, sender_email, sender_password):
     subject = f"Selection Confirmation - {role} at {company_name}"
@@ -129,7 +219,6 @@ def send_email(sender_email, sender_password, to_email, subject, body):
         st.error(f"Failed to send email: {e}")
         return False
 
-# === ZOOM API INTEGRATION ===
 def get_zoom_access_token(account_id, client_id, client_secret):
     url = "https://zoom.us/oauth/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -154,7 +243,7 @@ def schedule_zoom_meeting(access_token, topic, start_time, duration_minutes=60, 
     }
     payload = {
         "topic": topic,
-        "type": 2,  # Scheduled meeting
+        "type": 2,
         "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%S"),
         "duration": duration_minutes,
         "timezone": timezone,
@@ -173,34 +262,79 @@ def schedule_zoom_meeting(access_token, topic, start_time, duration_minutes=60, 
         st.error(f"Failed to schedule Zoom meeting: {e}")
         return None
 
-# === Role requirements as a constant dictionary ===
 ROLE_REQUIREMENTS: Dict[str, str] = {
     "AI_ML_Engineer": """
-        Required Skills:
-        - Python, PyTorch/TensorFlow
-        - Machine Learning algorithms and frameworks
-        - Deep Learning and Neural Networks
-        - Data preprocessing and analysis
-        - MLOps and model deployment
-        - RAG, LLM, Finetuning and Prompt Engineering
-    """,
+**Required Skills:**
+- Strong Python programming
+- Experience with ML libraries (PyTorch or TensorFlow)
+- Building and evaluating machine learning models
+- Understanding of deep learning concepts (CNNs, RNNs, transformers)
+- Data cleaning, feature engineering
+- Deploying models into production (MLOps tools)
+- Familiarity with prompt engineering and LLMs
+""",
     "Frontend_Engineer": """
-        Required Skills:
-        - React/Vue.js/Angular
-        - HTML5, CSS3, JavaScript/TypeScript
-        - Responsive design
-        - State management
-        - Frontend testing
-    """,
+**Required Skills:**
+- Proficient in React.js, Vue.js, or Angular
+- HTML5, CSS3, and modern JavaScript/TypeScript
+- Building responsive, cross-browser web apps
+- State management (Redux, Pinia, or Context API)
+- Frontend testing (Jest, React Testing Library)
+- API integration and UI optimization
+""",
     "Backend_Engineer": """
-        Required Skills:
-        - Python/Java/Node.js
-        - REST APIs
-        - Database design and management
-        - System architecture
-        - Cloud services (AWS/GCP/Azure)
-        - Kubernetes, Docker, CI/CD
-    """
+**Required Skills:**
+- Python, Node.js, or Java backend development
+- REST API & microservices design
+- Database schema design (SQL and NoSQL)
+- Authentication, security, and data validation
+- Cloud deployment (AWS, GCP, or Azure)
+- CI/CD pipelines and Docker
+""",
+    "Web_Developer": """
+**Required Skills:**
+- HTML5, CSS3, and modern JavaScript
+- Experience with at least one JS framework (React, Vue, or Angular)
+- Responsive layout & cross-browser compatibility
+- Consuming APIs and AJAX/Fetch/GraphQL
+- Basic backend (Node.js, Python, or PHP) is a plus
+- Version control (Git)
+""",
+    "Web_Designer": """
+**Required Skills:**
+- UI/UX fundamentals for web and mobile
+- Proficient in Figma, Adobe XD, or Sketch
+- HTML/CSS for rapid prototyping
+- Creating wireframes and mockups
+- Understanding color, typography, and layout
+- Handoff to developers
+""",
+    "JavaScript_Developer": """
+**Required Skills:**
+- Advanced JavaScript (ES6+)
+- DOM manipulation, events, and browser APIs
+- Working with Node.js and npm
+- Building SPAs with frameworks (React, Vue, Angular)
+- Asynchronous programming (Promises, async/await)
+- Unit testing and debugging
+""",
+    "Full_Stack_Engineer": """
+**Required Skills:**
+- Proficient in both frontend (React, Vue, Angular) and backend (Node.js, Python, Java) technologies
+- REST API and database design
+- Authentication and security best practices
+- Deploying full stack apps (Vercel, Netlify, Heroku, or AWS)
+- Git and CI/CD workflows
+- Understanding of DevOps and Docker is a plus
+""",
+    "UI_Developer": """
+**Required Skills:**
+- Expert in HTML5, CSS3 (Flexbox, Grid)
+- CSS preprocessors (Sass/Less) and frameworks (Bootstrap, Tailwind)
+- Building pixel-perfect, accessible UIs
+- Animation with CSS or JS libraries (GSAP, Framer Motion)
+- Optimizing for performance and mobile
+"""
 }
 
 def init_session_state() -> None:
@@ -213,32 +347,27 @@ def init_session_state() -> None:
         if key not in st.session_state:
             st.session_state[key] = value
 
-def analyze_resume_dobby(resume_text: str, role: Literal["AI_ML_Engineer", "Frontend_Engineer", "Backend_Engineer"], api_key: str, company_name: str) -> Tuple[bool, str]:
+def analyze_resume_dobby(resume_text: str, role: str, api_key: str, company_name: str) -> Tuple[bool, str]:
     dobby = DobbyChat(api_key)
     system_message = (
         f"You are an expert technical recruiter for {company_name}. "
         "Analyze resumes for technical roles and decide if a candidate should be selected."
     )
-    prompt = f"""Please analyze this resume against the following requirements and provide your response in valid JSON format:
-Role Requirements:
+    prompt = f"""Analyze this resume for the "{role.replace("_", " ")}" position using the requirements below and return your response in valid JSON:
+
 {ROLE_REQUIREMENTS[role]}
-Resume Text:
+
+Resume:
 {resume_text}
-Your response must be a valid JSON object like this:
+
+Response format (JSON only, no markdown, no extra text!):
 {{
   "selected": true/false,
-  "feedback": "Detailed feedback explaining the decision",
+  "feedback": "Explain your decision concisely.",
   "matching_skills": ["skill1", "skill2"],
   "missing_skills": ["skill3", "skill4"],
   "experience_level": "junior/mid/senior"
 }}
-Evaluation criteria:
-1. Match at least 70% of required skills
-2. Consider both theoretical knowledge and practical experience
-3. Value project experience and real-world applications
-4. Consider transferable skills from similar technologies
-5. Look for evidence of continuous learning and adaptability
-Important: Return ONLY the JSON object without any markdown formatting or backticks.
 """
     messages = [{"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}]
@@ -263,53 +392,62 @@ def extract_text_from_pdf(pdf_file) -> str:
         st.error(f"Error extracting PDF text: {str(e)}")
         return ""
 
-def main() -> None:
-    st.title("Dobby Recruitment System")
+def modern_sidebar():
+    st.sidebar.image("logo.png", width=120)
+    st.sidebar.markdown("## Configuration")
+    st.sidebar.markdown("### Dobby Settings")
+    api_key = st.sidebar.text_input("Dobby 70B API Key", type="password", value=st.session_state.dobby_api_key)
+    st.sidebar.markdown("### Zoom Settings")
+    zoom_account_id = st.sidebar.text_input("Zoom Account ID", type="password", value=st.session_state.zoom_account_id)
+    zoom_client_id = st.sidebar.text_input("Zoom Client ID", type="password", value=st.session_state.zoom_client_id)
+    zoom_client_secret = st.sidebar.text_input("Zoom Client Secret", type="password", value=st.session_state.zoom_client_secret)
+    st.sidebar.markdown("### Email Settings")
+    email_sender = st.sidebar.text_input("Sender Email", value=st.session_state.email_sender)
+    email_passkey = st.sidebar.text_input("Email App Password", type="password", value=st.session_state.email_passkey)
+    company_name = st.sidebar.text_input("Company Name", value=st.session_state.company_name)
+    st.session_state.dobby_api_key = api_key
+    st.session_state.zoom_account_id = zoom_account_id
+    st.session_state.zoom_client_id = zoom_client_id
+    st.session_state.zoom_client_secret = zoom_client_secret
+    st.session_state.email_sender = email_sender
+    st.session_state.email_passkey = email_passkey
+    st.session_state.company_name = company_name
 
+def main():
+    set_modern_style()
     init_session_state()
-    with st.sidebar:
-        st.header("Configuration")
-        st.subheader("Dobby Settings")
-        api_key = st.text_input("Dobby 70B API Key", type="password", value=st.session_state.dobby_api_key, help="Get your API key from Fireworks/Sentient")
-        if api_key: st.session_state.dobby_api_key = api_key
+    modern_sidebar()
 
-        st.subheader("Zoom Settings")
-        zoom_account_id = st.text_input("Zoom Account ID", type="password", value=st.session_state.zoom_account_id)
-        zoom_client_id = st.text_input("Zoom Client ID", type="password", value=st.session_state.zoom_client_id)
-        zoom_client_secret = st.text_input("Zoom Client Secret", type="password", value=st.session_state.zoom_client_secret)
-        if zoom_account_id: st.session_state.zoom_account_id = zoom_account_id
-        if zoom_client_id: st.session_state.zoom_client_id = zoom_client_id
-        if zoom_client_secret: st.session_state.zoom_client_secret = zoom_client_secret
+    st.markdown("<h1 style='color:#222;'>DOBBY Automated Recruitment System</h1>", unsafe_allow_html=True)
+    ROLES = list(ROLE_REQUIREMENTS.keys())
 
-        st.subheader("Email Settings")
-        email_sender = st.text_input("Sender Email", value=st.session_state.email_sender, help="Email address to send from")
-        email_passkey = st.text_input("Email App Password", type="password", value=st.session_state.email_passkey, help="App-specific password for email")
-        company_name = st.text_input("Company Name", value=st.session_state.company_name, help="Name to use in email communications")
-        if email_sender: st.session_state.email_sender = email_sender
-        if email_passkey: st.session_state.email_passkey = email_passkey
-        if company_name: st.session_state.company_name = company_name
-
-        required_configs = {'Dobby 70B API Key': st.session_state.dobby_api_key,
-                            'Zoom Account ID': st.session_state.zoom_account_id,
-                            'Zoom Client ID': st.session_state.zoom_client_id,
-                            'Zoom Client Secret': st.session_state.zoom_client_secret,
-                            'Email Sender': st.session_state.email_sender, 'Email Password': st.session_state.email_passkey,
-                            'Company Name': st.session_state.company_name}
+    required_configs = {
+        'Dobby 70B API Key': st.session_state.dobby_api_key,
+        'Zoom Account ID': st.session_state.zoom_account_id,
+        'Zoom Client ID': st.session_state.zoom_client_id,
+        'Zoom Client Secret': st.session_state.zoom_client_secret,
+        'Email Sender': st.session_state.email_sender,
+        'Email Password': st.session_state.email_passkey,
+        'Company Name': st.session_state.company_name
+    }
 
     missing_configs = [k for k, v in required_configs.items() if not v]
     if missing_configs:
-        st.warning(f"Please configure the following in the sidebar: {', '.join(missing_configs)}")
+        st.info(f"Please configure the following in the sidebar: {', '.join(missing_configs)}")
         return
 
     if not st.session_state.dobby_api_key:
-        st.warning("Please enter your Dobby 70B API key in the sidebar to continue.")
+        st.info("Please enter your Dobby 70B API key in the sidebar to continue.")
         return
 
-    role = st.selectbox("Select the role you're applying for:", ["AI_ML_Engineer", "Frontend_Engineer", "Backend_Engineer"])
-    with st.expander("View Required Skills", expanded=True): st.markdown(ROLE_REQUIREMENTS[role])
+    role = st.selectbox("Select the role you're applying for:", ROLES)
+    with st.expander("View Required Skills", expanded=True):
+        st.markdown(ROLE_REQUIREMENTS[role])
 
     if st.button("📝 New Application"):
-        keys_to_clear = ['resume_text', 'analysis_complete', 'is_selected', 'candidate_email', 'current_pdf', 'analysis_feedback']
+        keys_to_clear = [
+            'resume_text', 'analysis_complete', 'is_selected', 'candidate_email', 'current_pdf', 'analysis_feedback'
+        ]
         for key in keys_to_clear:
             if key in st.session_state:
                 st.session_state[key] = None if key == 'current_pdf' else ""
@@ -328,13 +466,15 @@ def main() -> None:
         st.subheader("Uploaded Resume")
         col1, col2 = st.columns([4, 1])
         with col1:
-            import tempfile, os
+            import tempfile
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
                 tmp_file.write(resume_file.read())
                 tmp_file_path = tmp_file.name
             resume_file.seek(0)
-            try: pdf_viewer(tmp_file_path)
-            finally: os.unlink(tmp_file_path)
+            try:
+                pdf_viewer(tmp_file_path)
+            finally:
+                os.unlink(tmp_file_path)
         with col2:
             st.download_button(label="📥 Download", data=resume_file, file_name=resume_file.name, mime="application/pdf")
         if not st.session_state.resume_text:
@@ -367,7 +507,6 @@ def main() -> None:
                 else:
                     st.warning("Unfortunately, your skills don't match our requirements.")
                     st.write(f"Feedback: {feedback}")
-                    # Send the custom rejection email
                     send_rejection_email(
                         to_email=st.session_state.candidate_email,
                         role=role,
@@ -384,7 +523,6 @@ def main() -> None:
 
         if st.button("Proceed with Application", key="proceed_button"):
             with st.spinner("Sending confirmation and scheduling interview on Zoom..."):
-                # Send confirmation email
                 confirmation_sent = send_simple_confirmation_email(
                     to_email=st.session_state.candidate_email,
                     company_name=st.session_state.company_name,
@@ -392,10 +530,8 @@ def main() -> None:
                     sender_email=st.session_state.email_sender,
                     sender_password=st.session_state.email_passkey
                 )
-                # Schedule interview for "tomorrow, 7:00pm IST"
                 ist_tz = pytz.timezone('Asia/Kolkata')
                 interview_datetime_ist = ist_tz.localize(datetime.now() + timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0)
-                # 1. Get Zoom access token
                 zoom_token = get_zoom_access_token(
                     st.session_state.zoom_account_id,
                     st.session_state.zoom_client_id,
@@ -409,7 +545,6 @@ def main() -> None:
                         topic,
                         interview_datetime_ist
                     )
-                # If Zoom failed, use a fallback
                 if not zoom_join_url:
                     zoom_join_url = "https://zoom.us/j/your_meeting_id_here (failed to auto-schedule - please create manually!)"
                 interview_sent = send_interview_email(
